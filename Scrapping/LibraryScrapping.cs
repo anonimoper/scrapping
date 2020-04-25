@@ -17,12 +17,20 @@ namespace Scrapping
             html = html.Replace("\r", " ").Replace("\t", " ").Replace("\n", " ").Replace("&nbsp;", " ");
             html = Regex.Replace(html, " {2,}", " ");
 
-            string patternCount = @"<div class=""counter.*?</div>";
+            string patternCount = @"Registro .*?<a";
             Regex rgxCount = new Regex(patternCount, RegexOptions.IgnoreCase);
             MatchCollection matchesCount = rgxCount.Matches(html);
 
-            string pattern = @"<div class=""dvList.*?</div>";
+            foreach(Match matchCount in matchesCount)
+            {
+                string textCount = matchCount.Value;
+                int indexDe = textCount.IndexOf("de");
+                string total = textCount.Substring(indexDe).Replace("de","").Replace("<a","");
+            }
 
+
+            string pattern = @"<div class=""dvList.*?</div>";
+            
             Regex rgx = new Regex(pattern, RegexOptions.IgnoreCase);
             MatchCollection matches = rgx.Matches(html);
 
@@ -125,63 +133,117 @@ namespace Scrapping
             var doc = new HtmlDocument();
             doc.LoadHtml(html);
 
+
+            var dataLiNode = doc.DocumentNode.SelectNodes("//div[@class='library']/ul/li");
+            List<LoanCity> listLoanCity = new List<LoanCity>();
+            LoanCity cityLibrary = null;
+            LoanLibrary loanLibrary = null;
+
+            List<string> loandDataString = null;
+            foreach (var dataLi in dataLiNode)
+            {                
+                var dataTextLi = dataLi.SelectSingleNode("strong");
+                var citeLi = dataLi.SelectSingleNode("cite");
+                if (dataTextLi != null && dataTextLi.InnerText.ToLower() == "biblioteca")
+                {
+                    if (cityLibrary != null)
+                    {
+                        listLoanCity.Add(cityLibrary);
+                    }
+                    cityLibrary = new LoanCity();
+                    cityLibrary.Name = dataLi.InnerText;
+                    cityLibrary.ListLoanLibrary = new List<LoanLibrary>();
+                    
+                }else if (dataTextLi != null && dataTextLi.InnerText.ToLower() == "sucursal")
+                {
+                    loanLibrary = new LoanLibrary();
+                    loanLibrary.Name = dataLi.SelectSingleNode("a").InnerText;
+                    loandDataString = new List<string>();
+                    cityLibrary.ListLoanLibrary.Add(loanLibrary);
+                }
+                else if (citeLi == null)
+                {
+                    string tipoDato = dataLi.ChildNodes.ElementAt(0).InnerText.ToLower();
+                    string dato = string.Empty;
+                    if (tipoDato.Contains("signatura"))
+                    {
+                        dato = dataLi.ChildNodes.ElementAt(2).InnerText;
+                    }
+                    else
+                    {
+                        dato = dataLi.ChildNodes.ElementAt(1).InnerText;
+                    }
+                    
+                    loandDataString.Add(dato);
+                }
+                else
+                {
+                    loandDataString.Add(citeLi.InnerText);
+                    LoanData loandData = MapperLoanData(loandDataString);
+                    loanLibrary.LoanData.Add(loandData);
+                    loandDataString = new List<string>();
+                }                
+            }
+
+            listLoanCity.Add(cityLibrary);
+
             var nodes = doc.DocumentNode.SelectNodes("//div[@class='detmain detbib']");
 
-            //Zonas de bibliotecas
-            List<LoanCity> listLoanCity = new List<LoanCity>();
-            foreach (var node in nodes)
-            {                
-                var cityLibrarie = node.SelectSingleNode("a").InnerText;
-                var nodesNameLibraries = node.SelectNodes("div[@class='dtSuc']/a");
-                List<string> namesLibraries = nodesNameLibraries.Select(x => x.InnerText).ToList();
+            ////Zonas de bibliotecas
+            //List<LoanCity> listLoanCity = new List<LoanCity>();
+            //foreach (var node in nodes)
+            //{                
+            //    var cityLibrarie = node.SelectSingleNode("a").InnerText;
+            //    var nodesNameLibraries = node.SelectNodes("div[@class='dtSuc']/a");
+            //    List<string> namesLibraries = nodesNameLibraries.Select(x => x.InnerText).ToList();
 
-                var nodesTrBookLibraries = node.SelectNodes("table[@class='dtNone']/tr");
+            //    var nodesTrBookLibraries = node.SelectNodes("table[@class='dtNone']/tr");
 
-                int countLibrarie = 0;
-                List<LoanLibrary> listLoanLibrary = new List<LoanLibrary>();
-                List<LoanData> listLoandData = new List<LoanData>();
-                foreach (var nodeTrBook in nodesTrBookLibraries)
-                {
-                    var nodesTdBookData = nodeTrBook.SelectNodes("td");
+            //    int countLibrarie = 0;
+            //    List<LoanLibrary> listLoanLibrary = new List<LoanLibrary>();
+            //    List<LoanData> listLoandData = new List<LoanData>();
+            //    foreach (var nodeTrBook in nodesTrBookLibraries)
+            //    {
+            //        var nodesTdBookData = nodeTrBook.SelectNodes("td");
 
-                    if (nodesTdBookData != null)
-                    {
-                        List<string> listLoanData = new List<string>();
-                        foreach (var nodeTd in nodesTdBookData)
-                        {
-                            if (!string.IsNullOrEmpty(nodeTd.InnerText))
-                            {
-                                listLoanData.Add(nodeTd.InnerText);
-                            }
-                        }
-                        LoanData loanData = MapperLoanData(listLoanData);
-                        listLoandData.Add(loanData);
-                    }
-                    else if (listLoandData.Count > 0)
-                    {
-                        LoanLibrary loanLibrary = new LoanLibrary();
-                        loanLibrary.Name = namesLibraries.ElementAt(countLibrarie);
-                        loanLibrary.LoanData = listLoandData;
-                        listLoanLibrary.Add(loanLibrary);
-                        listLoandData = new List<LoanData>();
-                        countLibrarie++;
-                    }
-                }
+            //        if (nodesTdBookData != null)
+            //        {
+            //            List<string> listLoanData = new List<string>();
+            //            foreach (var nodeTd in nodesTdBookData)
+            //            {
+            //                if (!string.IsNullOrEmpty(nodeTd.InnerText))
+            //                {
+            //                    listLoanData.Add(nodeTd.InnerText);
+            //                }
+            //            }
+            //            LoanData loanData = MapperLoanData(listLoanData);
+            //            listLoandData.Add(loanData);
+            //        }
+            //        else if (listLoandData.Count > 0)
+            //        {
+            //            LoanLibrary loanLibrary = new LoanLibrary();
+            //            loanLibrary.Name = namesLibraries.ElementAt(countLibrarie);
+            //            loanLibrary.LoanData = listLoandData;
+            //            listLoanLibrary.Add(loanLibrary);
+            //            listLoandData = new List<LoanData>();
+            //            countLibrarie++;
+            //        }
+            //    }
 
-                LoanLibrary loanLibrary1 = new LoanLibrary();
-                loanLibrary1.Name = namesLibraries.ElementAt(countLibrarie);
-                loanLibrary1.LoanData = listLoandData;
-                listLoanLibrary.Add(loanLibrary1);
+            //    LoanLibrary loanLibrary1 = new LoanLibrary();
+            //    loanLibrary1.Name = namesLibraries.ElementAt(countLibrarie);
+            //    loanLibrary1.LoanData = listLoandData;
+            //    listLoanLibrary.Add(loanLibrary1);
 
-                LoanCity loanCity = new LoanCity();
-                loanCity.Name = cityLibrarie;
-                loanCity.ListLoanLibrary = listLoanLibrary;
-                listLoanCity.Add(loanCity);
+            //    LoanCity loanCity = new LoanCity();
+            //    loanCity.Name = cityLibrarie;
+            //    loanCity.ListLoanLibrary = listLoanLibrary;
+            //    listLoanCity.Add(loanCity);
 
-                listLoandData = new List<LoanData>();
-                listLoanLibrary = new List<LoanLibrary>();
+            //    listLoandData = new List<LoanData>();
+            //    listLoanLibrary = new List<LoanLibrary>();
 
-            }
+            //}
 
             return listLoanCity;
         }
@@ -189,12 +251,11 @@ namespace Scrapping
         private static LoanData MapperLoanData(List<string> listLoanData)
         {
             LoanData loanData = new LoanData();
-            loanData.Location = listLoanData.ElementAt(0);
-            loanData.TypeReader = listLoanData.ElementAt(0);
+            loanData.Location = listLoanData.ElementAt(0);            
             loanData.TypeCopy = listLoanData.ElementAt(1);
-            loanData.Signature = listLoanData.ElementAt(2);
-            loanData.Availability = listLoanData.ElementAt(3);
-            loanData.Support = listLoanData.ElementAt(4);
+            loanData.Signature = listLoanData.ElementAt(2);            
+            loanData.Support = listLoanData.ElementAt(3);
+            loanData.Availability = listLoanData.ElementAt(4);
 
             return loanData;
         }

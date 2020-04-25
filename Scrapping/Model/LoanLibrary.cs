@@ -10,5 +10,10 @@ namespace Scrapping
     {        
         public string Name { get; set; }
         public List<LoanData> LoanData { get; set; }
+
+        public LoanLibrary()
+        {
+            this.LoanData = new List<LoanData>();
+        }
     }
 }
